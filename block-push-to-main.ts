@@ -19,8 +19,9 @@ const PROTECTED_BRANCHES = ["main", "master"];
 
 export default function (pi: ExtensionAPI) {
   // git push <remote> <branch> で main または master を明示的に push しようとしているか検出
+  // 注意: ブランチ名の一部として含まれる main/master は除外（例: feature/block-push-to-main）
   const explicitProtectedPushPattern =
-    /\bgit\s+push\b(?:(?!\bmain\b|\bmaster\b).)*\b(main|master)\b/;
+    /\bgit\s+push\b.*(?:\s|:)(main|master)(?:\s|$)/;
 
   // git push --force / --force-with-lease / -f を検出（force push 全般）
   const forcePushPattern =
