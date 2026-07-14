@@ -197,9 +197,9 @@ export async function braveSearch(
 
 export default function (pi: ExtensionAPI): void {
 	pi.on("session_start", async (_event, ctx) => {
-		if (!process.env.LITELLM_API_KEY) {
+		if (!process.env.LLM_API_KEY) {
 			ctx.ui.notify(
-				"brave_search: LITELLM_API_KEY is not set. The tool will prompt for it on first use.",
+				"brave_search: LLM_API_KEY is not set. The tool will prompt for it on first use.",
 				"warning",
 			);
 		}
@@ -229,7 +229,7 @@ export default function (pi: ExtensionAPI): void {
 			),
 		}),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
-			let apiKey = process.env.LITELLM_API_KEY;
+			let apiKey = process.env.LLM_API_KEY;
 			if (!apiKey && ctx.ui.input) {
 				apiKey = await ctx.ui.input(
 					"Enter your LiteLLM API Key for Brave Search:",
@@ -242,7 +242,7 @@ export default function (pi: ExtensionAPI): void {
 					content: [
 						{
 							type: "text",
-							text: "Error: LITELLM_API_KEY is not set and no API key was provided.",
+							text: "Error: LLM_API_KEY is not set and no API key was provided.",
 						},
 					],
 					details: {},

@@ -7,10 +7,10 @@ pi 用の Web 検索拡張機能です。Codex 向けに提供されている「
 
 ## セットアップ
 
-1. 利用者の環境で `LITELLM_API_KEY` に自身の LiteLLM API Key を設定します。
+1. 利用者の環境で `LLM_API_KEY` に自身の LiteLLM API Key を設定します。
 
    ```bash
-   export LITELLM_API_KEY="your-litellm-api-key"
+   export LLM_API_KEY="your-litellm-api-key"
    ```
 
 2. このディレクトリを pi の拡張機能として配置します（いずれか）。
@@ -37,13 +37,13 @@ pi -e .pi/extensions/brave-search/index.ts
 
 | 変数 | 既定値 | 説明 |
 |------|--------|------|
-| `LITELLM_API_KEY` | （なし） | LiteLLM API Key。`x-litellm-api-key: Bearer <キー>` として送信される。未設定の場合はツール実行時に入力を求められます。 |
+| `LLM_API_KEY` | （なし） | LiteLLM API Key。`x-litellm-api-key: Bearer <キー>` として送信される。未設定の場合はツール実行時に入力を求められます。 |
 | `BRAVE_SEARCH_MCP_URL` | `https://api.llm-gateway.kurisu.nico/brave_search/mcp` | Brave Search MCP サーバーのエンドポイント URL。 |
 
 ## 認証について
 
 Codex 向けドキュメントと同様に、リクエストヘッダ `x-litellm-api-key` に
-`Bearer ${LITELLM_API_KEY}` を設定して送信します（互換性のため `Authorization` ヘッダも
+`Bearer ${LLM_API_KEY}` を設定して送信します（互換性のため `Authorization` ヘッダも
 同様に付与します）。
 
 ## ツール仕様
