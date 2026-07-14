@@ -228,32 +228,40 @@ export default function (pi: ExtensionAPI): void {
 				content: [{ type: "text", text: `Searching the web for: ${params.q}` }],
 			});
 
-			const data = await braveGet(
-				"/web/search",
-				{
-					q: params.q,
-					count: params.count,
-					country: params.country,
-					search_lang: params.search_lang,
-					safesearch: params.safesearch,
-					freshness: params.freshness,
-					result_filter: params.result_filter,
-					goggles: params.goggles,
-				},
-				signal,
-			);
+			try {
+				const data = await braveGet(
+					"/web/search",
+					{
+						q: params.q,
+						count: params.count,
+						country: params.country,
+						search_lang: params.search_lang,
+						safesearch: params.safesearch,
+						freshness: params.freshness,
+						result_filter: params.result_filter,
+						goggles: params.goggles,
+					},
+					signal,
+				);
 
-			const results = data?.web?.results ?? [];
-			const altered = data?.query?.altered;
-			const header =
-				(altered ? `Query corrected to: ${altered}\n\n` : "") +
-				`${results.length} result(s):\n\n`;
-			const { text, details } = await pack(
-				header + formatWeb(results),
-				DEFAULT_MAX_BYTES,
-				DEFAULT_MAX_LINES,
-			);
-			return { content: [{ type: "text", text }], details };
+				const results = data?.web?.results ?? [];
+				const altered = data?.query?.altered;
+				const header =
+					(altered ? `Query corrected to: ${altered}\n\n` : "") +
+					`${results.length} result(s):\n\n`;
+				const { text, details } = await pack(
+					header + formatWeb(results),
+					DEFAULT_MAX_BYTES,
+					DEFAULT_MAX_LINES,
+				);
+				return { content: [{ type: "text", text }], details };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text", text: `web_search failed: ${message}` }],
+					details: { error: message },
+				};
+			}
 		},
 	});
 
@@ -309,31 +317,39 @@ export default function (pi: ExtensionAPI): void {
 				content: [{ type: "text", text: `Fetching web context for: ${params.q}` }],
 			});
 
-			const data = await braveGet(
-				"/llm/context",
-				{
-					q: params.q,
-					count: params.count,
-					maximum_number_of_urls: params.maximum_number_of_urls,
-					maximum_number_of_tokens: params.maximum_number_of_tokens,
-					country: params.country,
-					search_lang: params.search_lang,
-					context_threshold_mode: params.context_threshold_mode,
-					goggles: params.goggles,
-				},
-				signal,
-			);
+			try {
+				const data = await braveGet(
+					"/llm/context",
+					{
+						q: params.q,
+						count: params.count,
+						maximum_number_of_urls: params.maximum_number_of_urls,
+						maximum_number_of_tokens: params.maximum_number_of_tokens,
+						country: params.country,
+						search_lang: params.search_lang,
+						context_threshold_mode: params.context_threshold_mode,
+						goggles: params.goggles,
+					},
+					signal,
+				);
 
-			const generic = data?.grounding?.generic ?? [];
-			const maxTokens = params.maximum_number_of_tokens ?? 8192;
-			const maxBytes = Math.min(DEFAULT_MAX_BYTES, Math.max(1024, maxTokens) * 4);
-			const header = `${generic.length} source(s) extracted:\n\n`;
-			const { text, details } = await pack(
-				header + formatContext(generic),
-				maxBytes,
-				DEFAULT_MAX_LINES,
-			);
-			return { content: [{ type: "text", text }], details };
+				const generic = data?.grounding?.generic ?? [];
+				const maxTokens = params.maximum_number_of_tokens ?? 8192;
+				const maxBytes = Math.min(DEFAULT_MAX_BYTES, Math.max(1024, maxTokens) * 4);
+				const header = `${generic.length} source(s) extracted:\n\n`;
+				const { text, details } = await pack(
+					header + formatContext(generic),
+					maxBytes,
+					DEFAULT_MAX_LINES,
+				);
+				return { content: [{ type: "text", text }], details };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text", text: `llm_context failed: ${message}` }],
+					details: { error: message },
+				};
+			}
 		},
 	});
 }
