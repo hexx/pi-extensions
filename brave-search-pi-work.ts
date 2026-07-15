@@ -111,6 +111,41 @@ async function mcpRequest(
 }
 
 /**
+ * Send a JSON-RPC 2.0 *notification* (no id, no response expected).
+ * Notifications are best-effort: ignore transport errors and do not try to
+ * parse a JSON-RPC result (servers may return 202 with an empty body, or
+ * close the connection). Still capture an updated session id if the server
+ * echoes one in the response headers.
+ */
+async function mcpNotify(
+	method: string,
+	apiKey: string,
+	sessionId: string | null,
+	signal?: AbortSignal,
+): Promise<string | null> {
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+		Accept: "application/json, text/event-stream",
+		"x-litellm-api-key": `Bearer ${apiKey}`,
+		Authorization: `Bearer ${apiKey}`,
+	};
+	if (sessionId) headers["Mcp-Session-Id"] = sessionId;
+
+	try {
+		const res = await fetch(MCP_ENDPOINT, {
+			method: "POST",
+			headers,
+			body: JSON.stringify({ jsonrpc: "2.0", method }),
+			signal,
+		});
+		return res.headers.get("mcp-session-id") ?? sessionId;
+	} catch {
+		// Notifications are best-effort; never block the caller on failures.
+		return sessionId;
+	}
+}
+
+/**
  * Run a Brave Search query through the MCP server.
  * Performs the full JSON-RPC handshake (initialize -> initialized -> tools/list
  * -> tools/call) on every invocation for connection robustness.
@@ -140,14 +175,8 @@ export async function braveSearch(
 		signal,
 	);
 
-	// 2. initialized notification
-	const initialized = await mcpRequest(
-		{ ...rpc, method: "notifications/initialized" },
-		apiKey,
-		sessionId,
-		signal,
-	);
-	sessionId = initialized.sessionId;
+	// 2. initialized notification (fire-and-forget; no response expected)
+	sessionId = await mcpNotify("notifications/initialized", apiKey, sessionId, signal);
 
 	// 3. tools/list and pick a web-search tool
 	const list = await mcpRequest(
@@ -196,6 +225,14 @@ export async function braveSearch(
  * ----------------------------------------------------------------------- */
 
 export default function (pi: ExtensionAPI): void {
+	// brave_search は pi-work プロファイル時のみ有効化する。
+	// コンテナ起動時に ai-env ランチャーが AI_ENV_PROFILE を注入しており、
+	// それ以外のプロファイル(pi-private 等)ではツールを登録せず早期リターンする。
+	// brave-search-pi-private.ts (直接 Brave API 版, pi-private 専用) と排他的。
+	if (process.env.AI_ENV_PROFILE !== "pi-work") {
+		return;
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		if (!process.env.LLM_API_KEY) {
 			ctx.ui.notify(
