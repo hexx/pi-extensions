@@ -444,6 +444,19 @@ export default function (pi: ExtensionAPI): void {
 			});
 
 			try {
+				// Validate URL to prevent SSRF / internal service access
+				const parsed = new URL(
+					/^https?:\/\//i.test(params.url) ? params.url : `https://${params.url}`
+				);
+				if (parsed.protocol !== "https:") {
+					throw new Error("Only https:// URLs are allowed");
+				}
+				if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|\[::1\])/i.test(parsed.hostname)) {
+					throw new Error(
+						`URL hostname "${parsed.hostname}" is not allowed (internal/private addresses are blocked)`,
+					);
+				}
+
 				const markdown = await jinaFetch(params.url, getJinaKey(), signal);
 				const maxTokens = params.max_tokens ?? 8192;
 				const maxBytes = Math.min(DEFAULT_MAX_BYTES, Math.max(1024, maxTokens) * 4);
