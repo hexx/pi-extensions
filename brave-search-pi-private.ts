@@ -160,7 +160,7 @@ function formatContext(generic: any[]): string {
 
 export default function (pi: ExtensionAPI): void {
 	// この extension は pi-private プロファイル時のみ有効化する。
-	// 既存の brave-search-pi-work.ts (MCP ゲートウェイ版, pi-work 専用) と排他的。
+	// 既存の brave-search.ts (MCP ゲートウェイ版) とは異なるアプローチのため、同居してもツール名が重複しません。
 	if (process.env.AI_ENV_PROFILE !== "pi-private") {
 		return;
 	}

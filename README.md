@@ -69,21 +69,9 @@ pi から Web 検索（Brave Search）を呼び出せる `brave_search` ツー�
     - `count` (integer, 任意, 1–20, 既定 5): 取得する結果数
 - **備考**: 各呼び出しで `initialize → notifications/initialized → tools/list → tools/call` の JSON-RPC ハンドシェイクを実行し、JSON 応答と SSE 応答の両方に対応します。
 
-### `brave-search-pi-work.ts` — Brave Search 検索ツール（pi-work プロファイル専用 / MCP ゲートウェイ版）
-
-`brave-search.ts` のプロファイル限定版です。環境変数 `AI_ENV_PROFILE` が `pi-work` の場合のみ `brave_search` ツールを登録し、それ以外のプロファイルでは何も登録せず早期リターンします。`brave-search-pi-private.ts`（直接 Brave API 版, pi-private 専用）と排他的に使います。
-
-- **エンドポイント**: `https://api.llm-gateway.kurisu.nico/brave_search/mcp`（環境変数 `BRAVE_SEARCH_MCP_URL` で上書き可）
-- **認証**: 環境変数 `LLM_API_KEY` から `x-litellm-api-key: Bearer <キー>` ヘッダを送信（Codex 向け設定と同一）。未設定の場合はツール実行時に `ctx.ui.input` で入力を促します。
-- **ツール仕様**:
-  - `brave_search`
-    - `query` (string, 必須): 検索クエリ
-    - `count` (integer, 任意, 1–20, 既定 5): 取得する結果数
-- **備考**: `brave-search.ts` と同じ MCP Streamable HTTP クライアント実装を使用し、プロファイルごとに有効化するツールを切り替えたい場合に利用します。
-
 ### `brave-search-pi-private.ts` — Web Search / LLM Context ツール（pi-private プロファイル専用 / 直接 Brave API 版）
 
-MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search` と `llm_context` の 2 つのツールを登録します。`brave-search-pi-work.ts`（MCP ゲートウェイ版, pi-work 専用）と排他的に使います。
+MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search` と `llm_context` の 2 つのツールを登録します。既存の `brave-search.ts`（MCP ゲートウェイ版）とは異なるアプローチのため、同居してもツール名が重複しません。
 
 - **エンドポイント**: `https://api.search.brave.com/res/v1`（環境変数で上書き不可）
 - **認証**: 環境変数 `BRAVE_SEARCH_API_KEY` を `X-Subscription-Token` ヘッダで送信（未設定の場合はツール実行時にエラー）。
