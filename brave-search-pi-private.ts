@@ -16,7 +16,8 @@
  * never overwhelmed. Requires `BRAVE_SEARCH_API_KEY` in the environment.
  *
  * Profile gating: only registers its tools when AI_ENV_PROFILE === "pi-private".
- * It is mutually exclusive with brave-search-pi-work.ts (MCP gateway, pi-work only).
+ * It is a different approach from brave-search.ts (MCP gateway) and does not
+ * duplicate its `brave_search` tool, so both can coexist without name clashes.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
