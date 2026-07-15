@@ -69,16 +69,22 @@ pi -e ./brave-search-pi-work.ts
     - `count` (integer, 任意, 1–20, 既定 5): 取得する結果数
 - **備考**: 各呼び出しで `initialize → notifications/initialized → tools/list → tools/call` の JSON-RPC ハンドシェイクを実行し、JSON 応答と SSE 応答の両方に対応します。
 
-### `brave-search-pi-private.ts` — Web Search / LLM Context ツール（pi-private プロファイル専用 / 直接 Brave API 版）
+### `brave-search-pi-private.ts` — Web Search / Web Fetch / LLM Context ツール（pi-private プロファイル専用 / 直接 Brave API 版）
 
-MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search` と `llm_context` の 2 つのツールを登録します。既存の `brave-search-pi-work.ts`（MCP ゲートウェイ版）とは異なるアプローチのため、同居してもツール名が重複しません。
+MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search`・`web_fetch`・`llm_context` の 3 つのツールを登録します。既存の `brave-search-pi-work.ts`（MCP ゲートウェイ版）とは異なるアプローチのため、同居してもツール名が重複しません。
 
-- **エンドポイント**: `https://api.search.brave.com/res/v1`（環境変数で上書き不可）
-- **認証**: 環境変数 `BRAVE_SEARCH_API_KEY` を `X-Subscription-Token` ヘッダで送信（未設定の場合はツール実行時にエラー）。
+- **エンドポイント**:
+  - Brave Search API: `https://api.search.brave.com/res/v1`（`web_search` / `llm_context` 用）
+  - Jina Reader: `https://r.jina.ai/<URL>`（`web_fetch` 用。環境変数で上書き不可）
+- **認証**:
+  - `BRAVE_SEARCH_API_KEY` を `X-Subscription-Token` ヘッダで送信（`web_search` / `llm_context` 用。未設定の場合はツール実行時にエラー）
+  - `JINA_API_KEY` を `Authorization: Bearer <キー>` ヘッダで送信（`web_fetch` 用。未設定の場合はツール実行時にエラー）
 - **ツール仕様**:
   - `web_search` : ウェブ検索の一覧（タイトル・URL・スニペット・freshness/result-type フィルタ）。ソースを*発見*したいときに使用。
     - `q` (string, 必須), `count` (integer, 任意, 1–20, 既定 10), `country`, `search_lang`, `safesearch`, `freshness`, `result_filter`, `goggles`
-  - `llm_context` : Brave LLM Context API 経由で取得したページの抽出済みコンテンツ（テキスト・表・コード）を RAG/グラウンディング用途で返す。ウェブ内容を*読む*ときに使用。
+  - `web_fetch` : Jina Reader (r.jina.ai) 経由で特定 URL を clean な markdown として取得。読みたいページの URL が既にあるとき（例: 検索結果から選んだもの）に使用。
+    - `url` (string, 必須), `max_tokens` (integer, 任意, 1024–32768, 既定 8192)
+  - `llm_context` : Brave LLM Context API 経由で取得したページの抽出済みコンテンツ（テキスト・表・コード）を RAG/グラウンディング用途で返す。クエリから複数ソースを*読む*ときに使用。
     - `q` (string, 必須), `count` (integer, 任意, 1–50, 既定 20), `maximum_number_of_urls` (任意, 1–50, 既定 20), `maximum_number_of_tokens` (任意, 1024–32768, 既定 8192), `country`, `search_lang`, `context_threshold_mode`, `goggles`
 - **備考**: 出力は `truncateHead` でバイト/行数バジェットに切り詰められ、切り詰められた場合は全文を一時ファイルに保存したパスを結果に付与します。
 

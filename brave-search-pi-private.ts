@@ -9,11 +9,16 @@
  *   - web_search : classic web/results listing (titles, URLs, snippets,
  *                  freshness/result-type filters). Best when you want to
  *                  *discover* sources or choose which page to read.
+ *   - web_fetch  : fetch the full content of a specific URL as clean markdown
+ *                  via the Jina Reader API (r.jina.ai). Best when you want to
+ *                  *read* a particular page you already have the URL for.
  *   - llm_context : pre-extracted page content (text, tables, code) for
- *                  grounding/RAG. Best when you want to *read* web content.
+ *                  grounding/RAG. Best when you want to *read* web content via
+ *                  a query rather than a known URL.
  *
  * Output is truncated to a configurable token budget so the agent context is
- * never overwhelmed. Requires `BRAVE_SEARCH_API_KEY` in the environment.
+ * never overwhelmed. Requires `BRAVE_SEARCH_API_KEY` (web_search/llm_context)
+ * and `JINA_API_KEY` (web_fetch) in the environment.
  *
  * Profile gating: only registers its tools when AI_ENV_PROFILE === "pi-private".
  * It is a different approach from brave-search-pi-work.ts (MCP gateway) and does not
@@ -35,6 +40,7 @@ import { join } from "node:path";
 
 const BASE = "https://api.search.brave.com/res/v1";
 const API_KEY_ENV = "BRAVE_SEARCH_API_KEY";
+const JINA_API_KEY_ENV = "JINA_API_KEY";
 
 /** ----------------------------------------------------------------------- *
  * Helpers
@@ -46,6 +52,18 @@ function getApiKey(): string {
 		throw new Error(
 			`Missing ${API_KEY_ENV} environment variable. Export it before starting pi ` +
 				`(e.g. export ${API_KEY_ENV}=<your-brave-key>).`,
+		);
+	}
+	return key;
+}
+
+/** Get the Jina Reader API key from environment. */
+function getJinaKey(): string {
+	const key = process.env[JINA_API_KEY_ENV];
+	if (!key) {
+		throw new Error(
+			`Missing ${JINA_API_KEY_ENV} environment variable. Export it before starting pi ` +
+				`(e.g. export ${JINA_API_KEY_ENV}=<your-jina-key>).`,
 		);
 	}
 	return key;
@@ -79,6 +97,36 @@ async function braveGet(
 		);
 	}
 	return res.json();
+}
+
+/** Build the Jina Reader URL for a target (https://r.jina.ai/<target>). */
+function jinaUrl(target: string): string {
+	const t = /^https?:\/\//i.test(target) ? target : `https://${target}`;
+	return `https://r.jina.ai/${t}`;
+}
+
+/** Fetch a URL's content as clean markdown via the Jina Reader API. */
+async function jinaFetch(
+	target: string,
+	apiKey: string,
+	signal?: AbortSignal,
+): Promise<string> {
+	const res = await fetch(jinaUrl(target), {
+		method: "GET",
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+			Accept: "text/markdown",
+		},
+		signal,
+	});
+
+	if (!res.ok) {
+		const body = await res.text().catch(() => "");
+		throw new Error(
+			`Jina Reader error ${res.status} ${res.statusText}: ${body.slice(0, 500)}`,
+		);
+	}
+	return res.text();
 }
 
 /** Strip lightweight HTML (e.g. <strong>) from Brave result descriptions. */
@@ -170,6 +218,12 @@ export default function (pi: ExtensionAPI): void {
 		if (ctx.hasUI && !process.env[API_KEY_ENV]) {
 			ctx.ui.notify(
 				`brave-search-tools: ${API_KEY_ENV} is not set; web_search/llm_context will fail until it is provided.`,
+				"warning",
+			);
+		}
+		if (ctx.hasUI && !process.env[JINA_API_KEY_ENV]) {
+			ctx.ui.notify(
+				`brave-search-tools: ${JINA_API_KEY_ENV} is not set; web_fetch will fail until it is provided.`,
 				"warning",
 			);
 		}
@@ -348,6 +402,74 @@ export default function (pi: ExtensionAPI): void {
 				const message = err instanceof Error ? err.message : String(err);
 				return {
 					content: [{ type: "text", text: `llm_context failed: ${message}` }],
+					details: { error: message },
+				};
+			}
+		},
+	});
+
+	pi.registerTool({
+		name: "web_fetch",
+		label: "Web Fetch",
+		description:
+			"Fetch the full content of a specific URL as clean markdown via the Jina " +
+			"Reader API (r.jina.ai). Jina strips navigation/ads and converts the page " +
+			"to readable markdown, so this is the right tool when you already know " +
+			"which page you want to read (e.g. a promising search result). Use this to " +
+			"read a particular web page, documentation, or article end-to-end.",
+		promptSnippet: "Fetch a web page as clean markdown via Jina Reader (r.jina.ai)",
+		promptGuidelines: [
+			"Use web_fetch to read the *full content* of a specific URL. web_search discovers sources; web_fetch reads the one you picked.",
+			"Returns clean markdown (boilerplate/ads removed). For grounding/RAG over many sources from a query, prefer llm_context instead.",
+			"Set max_tokens lower for quick reads and higher for long pages/articles.",
+		],
+		parameters: Type.Object({
+			url: Type.String({
+				description: "The full URL to read (e.g. https://example.com/article).",
+			}),
+			max_tokens: Type.Optional(
+				Type.Integer({
+					minimum: 1024,
+					maximum: 32768,
+					description: "Approx max tokens of content to return (default 8192).",
+				}),
+			),
+		}),
+		async execute(_toolCallId, params, signal, onUpdate) {
+			if (signal?.aborted) {
+				throw new Error("web_fetch cancelled before start");
+			}
+			onUpdate?.({
+				content: [{ type: "text", text: `Fetching ${params.url} via Jina Reader` }],
+			});
+
+			try {
+				// Validate URL to prevent SSRF / internal service access
+				const parsed = new URL(
+					/^https?:\/\//i.test(params.url) ? params.url : `https://${params.url}`
+				);
+				if (parsed.protocol !== "https:") {
+					throw new Error("Only https:// URLs are allowed");
+				}
+				if (/^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|\[::1\])/i.test(parsed.hostname)) {
+					throw new Error(
+						`URL hostname "${parsed.hostname}" is not allowed (internal/private addresses are blocked)`,
+					);
+				}
+
+				const markdown = await jinaFetch(params.url, getJinaKey(), signal);
+				const maxTokens = params.max_tokens ?? 8192;
+				const maxBytes = Math.min(DEFAULT_MAX_BYTES, Math.max(1024, maxTokens) * 4);
+				const { text, details } = await pack(
+					markdown,
+					maxBytes,
+					DEFAULT_MAX_LINES,
+				);
+				return { content: [{ type: "text", text }], details };
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return {
+					content: [{ type: "text", text: `web_fetch failed: ${message}` }],
 					details: { error: message },
 				};
 			}
