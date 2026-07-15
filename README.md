@@ -10,7 +10,7 @@ hexx が作成・管理している [pi coding agent](https://github.com/earendi
 
 ```bash
 git clone https://github.com/hexx/pi-extensions.git
-ln -s "$(pwd)/pi-extensions/brave-search.ts" ~/.pi/agent/extensions/brave-search.ts
+ln -s "$(pwd)/pi-extensions/brave-search-pi-work.ts" ~/.pi/agent/extensions/brave-search-pi-work.ts
 ```
 
 ### 2. プロジェクトローカルに導入
@@ -19,7 +19,7 @@ ln -s "$(pwd)/pi-extensions/brave-search.ts" ~/.pi/agent/extensions/brave-search
 
 ```bash
 mkdir -p .pi/extensions
-cp brave-search.ts .pi/extensions/
+cp brave-search-pi-work.ts .pi/extensions/
 ```
 
 ### 3. `pi install` でパッケージとして導入
@@ -35,7 +35,7 @@ pi install git:github.com/hexx/pi-extensions@main
 ```json
 {
   "extensions": [
-    "/abs/path/to/pi-extensions/brave-search.ts"
+    "/abs/path/to/pi-extensions/brave-search-pi-work.ts"
   ]
 }
 ```
@@ -45,16 +45,16 @@ pi install git:github.com/hexx/pi-extensions@main
 特定の拡張機能だけを試すには `-e` フラグを使います。
 
 ```bash
-pi -e ./brave-search.ts
+pi -e ./brave-search-pi-work.ts
 ```
 
 変更を反映するには `/reload` を実行してください。拡張機能は jiti によってそのまま TypeScript として読み込まれるため、コンパイルは不要です。
 
 ## 拡張機能一覧
 
-### `brave-search.ts` — Brave Search 検索ツール
+### `brave-search-pi-work.ts` — Brave Search 検索ツール（pi-work プロファイル専用 / MCP ゲートウェイ版）
 
-pi から Web 検索（Brave Search）を呼び出せる `brave_search` ツールを追加します。pi には組み込みの MCP クライアントがないため、本拡張機能内で最小限の MCP Streamable HTTP クライアントを実装し、LiteLLM 上の Brave Search MCP サーバーへ接続します。
+環境変数 `AI_ENV_PROFILE` が `pi-work` の場合のみ、pi から Web 検索（Brave Search）を呼び出せる `brave_search` ツールを登録します（それ以外のプロファイルではツールを登録せず早期リターン）。pi には組み込みの MCP クライアントがないため、本拡張機能内で最小限の MCP Streamable HTTP クライアントを実装し、LiteLLM 上の Brave Search MCP サーバーへ接続します。
 
 - **エンドポイント**: `https://api.llm-gateway.kurisu.nico/brave_search/mcp`（環境変数 `BRAVE_SEARCH_MCP_URL` で上書き可）
 - **認証**: 環境変数 `LLM_API_KEY` から `x-litellm-api-key: Bearer <キー>` ヘッダを送信（Codex 向け設定と同一）。互換性のため `Authorization` ヘッダも同様に付与します。未設定の場合はツール実行時に `ctx.ui.input` で入力を促します。
@@ -71,7 +71,7 @@ pi から Web 検索（Brave Search）を呼び出せる `brave_search` ツー�
 
 ### `brave-search-pi-private.ts` — Web Search / LLM Context ツール（pi-private プロファイル専用 / 直接 Brave API 版）
 
-MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search` と `llm_context` の 2 つのツールを登録します。既存の `brave-search.ts`（MCP ゲートウェイ版）とは異なるアプローチのため、同居してもツール名が重複しません。
+MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す拡張機能です。環境変数 `AI_ENV_PROFILE` が `pi-private` の場合のみ `web_search` と `llm_context` の 2 つのツールを登録します。既存の `brave-search-pi-work.ts`（MCP ゲートウェイ版）とは異なるアプローチのため、同居してもツール名が重複しません。
 
 - **エンドポイント**: `https://api.search.brave.com/res/v1`（環境変数で上書き不可）
 - **認証**: 環境変数 `BRAVE_SEARCH_API_KEY` を `X-Subscription-Token` ヘッダで送信（未設定の場合はツール実行時にエラー）。

@@ -16,7 +16,7 @@
  * never overwhelmed. Requires `BRAVE_SEARCH_API_KEY` in the environment.
  *
  * Profile gating: only registers its tools when AI_ENV_PROFILE === "pi-private".
- * It is a different approach from brave-search.ts (MCP gateway) and does not
+ * It is a different approach from brave-search-pi-work.ts (MCP gateway) and does not
  * duplicate its `brave_search` tool, so both can coexist without name clashes.
  */
 
@@ -161,7 +161,7 @@ function formatContext(generic: any[]): string {
 
 export default function (pi: ExtensionAPI): void {
 	// この extension は pi-private プロファイル時のみ有効化する。
-	// 既存の brave-search.ts (MCP ゲートウェイ版) とは異なるアプローチのため、同居してもツール名が重複しません。
+	// 既存の brave-search-pi-work.ts (MCP ゲートウェイ版, pi-work 専用) とは異なるアプローチのため、同居してもツール名が重複しません。
 	if (process.env.AI_ENV_PROFILE !== "pi-private") {
 		return;
 	}
