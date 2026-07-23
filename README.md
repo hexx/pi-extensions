@@ -88,6 +88,31 @@ MCP ゲートウェイを経由せず、Brave Search API を直接呼び出す�
     - `q` (string, 必須), `count` (integer, 任意, 1–50, 既定 20), `maximum_number_of_urls` (任意, 1–50, 既定 20), `maximum_number_of_tokens` (任意, 1024–32768, 既定 8192), `country`, `search_lang`, `context_threshold_mode`, `goggles`
 - **備考**: 出力は `truncateHead` でバイト/行数バジェットに切り詰められ、切り詰められた場合は全文を一時ファイルに保存したパスを結果に付与します。
 
+### `atlassian-mcp.ts` — Atlassian Rovo MCP クライアント（Jira / Confluence 等）
+
+Atlassian 公式リモート MCP サーバー（Rovo MCP サーバー）へ接続し、46+ の MCP ツールを単一のプロキシツール `atlassian_mcp` 経由で LLM に公開します。pi には組み込み MCP クライアントがないため、MCP Streamable HTTP クライアントと OAuth 2.1 クライアントを本拡張内で手組みしています（npm 依存なし）。Claude Code の `claude mcp add --transport http --scope user atlassian https://mcp.atlassian.com/v1/mcp` と同等の構成の pi 版です。設計経緯は `docs/atlassian-mcp-spec.md`・`docs/adr/0001-handrolled-oauth-manual-approval.md` を参照してください。
+
+- **エンドポイント**: `https://mcp.atlassian.com/v1/mcp/authv2`（環境変数 `ATLASSIAN_MCP_URL` で上書き可。OAuth は authv2 必須、API トークンのみなら `/v1/mcp` も可）
+- **認証**（優先順）:
+  1. `ATLASSIAN_MCP_AUTH`（`Authorization` ヘッダ生値）
+  2. `ATLASSIAN_MCP_EMAIL` ＋ `ATLASSIAN_MCP_API_TOKEN`（Basic 認証。組織管理者による有効化が必要）
+  3. OAuth 2.1 手動承認フロー（ブラウザ不要: pi が提示した認可 URL を別デバイスのブラウザで開き、リダイレクト URL を貼り付けて完了します）
+- **認証情報**: `~/.pi/agent/atlassian-mcp-auth.json`（0600）に `AI_ENV_PROFILE`（`pi-private` / `pi-work`）キーでアカウント別に保存します。private と work で別アカウントを保持できます。
+- **コマンド**: `/atlassian-login`（認証・再認証）, `/atlassian-logout`（現在のプロファイルの認証情報を削除）
+- **環境変数**:
+  | 変数 | 既定値 | 説明 |
+  |------|--------|------|
+  | `ATLASSIAN_MCP_URL` | `https://mcp.atlassian.com/v1/mcp/authv2` | MCP エンドポイント |
+  | `ATLASSIAN_MCP_AUTH` | （なし） | `Authorization` ヘッダ生値。最優先。 |
+  | `ATLASSIAN_MCP_EMAIL` | （なし） | API トークン認証のメールアドレス |
+  | `ATLASSIAN_MCP_API_TOKEN` | （なし） | API トークン |
+- **ツール仕様**:
+  - `atlassian_mcp`
+    - `action` ("list" | "describe" | "call", 必須): list=ツール一覧 / describe=ツールのスキーマ詳細 / call=実行
+    - `tool` (string, describe/call で必須): MCP ツール名
+    - `args` (object, call で使用): MCP ツールへ渡す引数
+- **備考**: 呼び出しごとにハンドシェイクするステートレス設計（`tools/list` はセッション内でキャッシュ）。50 KiB / 2000 行を超える結果は切り詰め、全文を一時ファイルに保存してパスを付与します。OAuth クライアントは RFC 9728/8414 のパスAware well-known URL と Dynamic Client Registration (RFC 7591)・PKCE に対応しています。
+
 ### `block-push-to-main.ts` — main への直接 push を禁止
 
 GitHub の `main` / `master` ブランチへの直接 push および削除を禁止する拡張機能です。`git push` コマンドをインターセプトし、対象 ref が保護ブランチの場合にブロックします。
