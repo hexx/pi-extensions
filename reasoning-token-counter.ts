@@ -8,11 +8,11 @@
  *
  * 設計: docs/reasoning-token-counter-spec.md / CONTEXT.md を参照。
  *
- * - 表示: `thinking 1.2k (72%) / 45k`（左=直近ターン＋出力比、右=セッション累計）
+ * - 表示: `thinking 1.2k (73%) / 45k (68%)`（左=直近ターン＋出力比、右=セッション累計＋出力比）
  * - ストリーミング中は直前ターンの確定値を出し続け、usage が届いたら
  *   今ターンの値に置き換わる（プロバイダの usage はストリーム末尾に届く
  *   ため、実質ターン確定時に値が入る。推定値は使わない）
- * - 出力比は今ターンのみ（分母=出力トークン。出力 100 未満は省略）
+ * - 出力比は今ターンとセッション累計の両方（分母=出力トークン。出力 100 未満は省略）
  * - 値が無いとき（非対応プロバイダ・thinking off）は非表示
  * - セッション累計は /new で 0 にリセット、/resume では全エントリを
  *   リプレイして再集計（ビルトインフッターと同基準: アシスタント/ツール
@@ -62,23 +62,26 @@ function reasoningPct(reasoning: number, output: number): number | undefined {
 }
 
 /**
- * セッション全エントリから累計 Reasoning トークンを再集計する。
+ * セッション全エントリから累計 Reasoning / 出力トークンを再集計する。
  * ビルトインフッターの集計対象（assistant / toolResult の usage、
  * compaction / branch_summary の usage）と同じ基準。
  */
-function computeSessionReasoning(entries: SessionEntry[]): number {
-	let total = 0;
+function computeSessionUsage(entries: SessionEntry[]): { reasoning: number; output: number } {
+	let reasoning = 0;
+	let output = 0;
 	for (const entry of entries) {
 		if (entry.type === "message") {
 			const role = entry.message.role;
 			if (role === "assistant" || role === "toolResult") {
-				total += reasoningOf(entry.message.usage);
+				reasoning += reasoningOf(entry.message.usage);
+				output += outputOf(entry.message.usage);
 			}
 		} else if ((entry.type === "branch_summary" || entry.type === "compaction") && entry.usage) {
-			total += reasoningOf(entry.usage);
+			reasoning += reasoningOf(entry.usage);
+			output += outputOf(entry.usage);
 		}
 	}
-	return total;
+	return { reasoning, output };
 }
 
 export default function (pi: ExtensionAPI) {
@@ -96,8 +99,17 @@ export default function (pi: ExtensionAPI) {
 	let liveOutput = 0;
 	/** セッション累計 */
 	let sessionReasoning = 0;
+	/** セッション累計の出力トークン（累計の出力比の分母） */
+	let sessionOutput = 0;
 	/** turn_start 〜 turn_end の間 true（ターン未確定） */
 	let streaming = false;
+
+	/** セッション累計を全エントリから再集計して更新する（session_start / turn_end / session_compact 共通） */
+	function refreshSessionUsage(ctx: ExtensionContext) {
+		const usage = computeSessionUsage(ctx.sessionManager.getEntries());
+		sessionReasoning = usage.reasoning;
+		sessionOutput = usage.output;
+	}
 
 	function update(ctx: ExtensionContext) {
 		// JSON / print モードでは ctx.ui が利用できないため、TUI / RPC のみ更新する
@@ -127,15 +139,21 @@ export default function (pi: ExtensionAPI) {
 		if (turnValue > 0) {
 			const pctStr = pct !== undefined ? ` (${pct}%)` : "";
 			const left = theme.fg("accent", `thinking ${formatCount(turnValue)}${pctStr}`);
+			const sessionPct = reasoningPct(sessionReasoning, sessionOutput);
+			const sessionPctStr = sessionPct !== undefined ? ` (${sessionPct}%)` : "";
 			const total =
-				sessionReasoning > 0 ? ` / ${theme.fg("dim", formatCount(sessionReasoning))}` : "";
+				sessionReasoning > 0
+					? ` / ${theme.fg("dim", `${formatCount(sessionReasoning)}${sessionPctStr}`)}`
+					: "";
 			ctx.ui.setStatus(STATUS_KEY, left + total);
 			return;
 		}
 
 		if (sessionReasoning > 0) {
-			// 今ターンは値なし・累計のみ: 背景情報として dim で表示
-			ctx.ui.setStatus(STATUS_KEY, theme.fg("dim", `thinking ${formatCount(sessionReasoning)}`));
+			// 今ターンは値なし・累計のみ: 背景情報として dim で表示（累計の出力比も添える）
+			const sessionPct = reasoningPct(sessionReasoning, sessionOutput);
+			const pctStr = sessionPct !== undefined ? ` (${sessionPct}%)` : "";
+			ctx.ui.setStatus(STATUS_KEY, theme.fg("dim", `thinking ${formatCount(sessionReasoning)}${pctStr}`));
 			return;
 		}
 
@@ -145,7 +163,7 @@ export default function (pi: ExtensionAPI) {
 
 	// セッション開始（起動 /new /resume /fork）: 全エントリのリプレイで累計を再集計
 	pi.on("session_start", (_event, ctx) => {
-		sessionReasoning = computeSessionReasoning(ctx.sessionManager.getEntries());
+		refreshSessionUsage(ctx);
 		turnReasoning = 0;
 		turnOutput = 0;
 		lastTurnReasoning = 0;
@@ -200,13 +218,13 @@ export default function (pi: ExtensionAPI) {
 		streaming = false;
 		lastTurnReasoning = turnReasoning;
 		lastTurnOutput = turnOutput;
-		sessionReasoning = computeSessionReasoning(ctx.sessionManager.getEntries());
+		refreshSessionUsage(ctx);
 		update(ctx);
 	});
 
 	// コンパクション: サマリ生成の usage も累計に含めるため再集計
 	pi.on("session_compact", (event, ctx) => {
-		sessionReasoning = computeSessionReasoning(ctx.sessionManager.getEntries());
+		refreshSessionUsage(ctx);
 		update(ctx);
 	});
 }
