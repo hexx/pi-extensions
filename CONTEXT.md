@@ -1,8 +1,31 @@
-# pi-extensions / Atlassian MCP 拡張
+# pi-extensions
+
+hexx が作成・管理している pi coding agent 用の拡張機能群の文脈。各拡張はトップディレクトリの単一 TypeScript ファイルとして実装され、フッター・ツール・コマンドなどの pi の拡張ポイントを利用する。
+
+## Reasoning トークン表示拡張
+
+### Language
+
+**Reasoning トークン**:
+プロバイダが `usage.reasoning` として報告する思考（推論）トークン数。`output` の内数。OpenAI 系は `completion_tokens_details.reasoning_tokens`、Anthropic は thinking ブロックから算出する。非対応プロバイダでは `undefined` になり得る。
+_Avoid_: 思考トークン（同じ意味だが API の用語は reasoning tokens）、推論コスト（本拡張はトークン数のみ表示し、コストは扱わない）
+
+**今ターン Reasoning**:
+直近のターン（1回の LLM 応答＋ツール実行のまとまり）で消費された Reasoning トークン数。ターン内の各アシスタントメッセージの `usage.reasoning` を合算する。ストリーミング中はプロバイダの usage がストリーム末尾まで届かないため、確定はターン終了後。
+_Avoid_: ターン合計（出力トークンなど Reasoning 以外も含む一般的な語）
+
+**セッション累計 Reasoning**:
+セッション全体（コンパクション後のブランチサマリも含む）で消費された Reasoning トークンの累計。`session_start` 時に全エントリをリプレイして再集計し、`/new` で 0 にリセットされる。
+
+**拡張ステータス行**:
+フッターの 3 行目。`ctx.ui.setStatus(key, text)` で拡張が常時表示できる領域。複数拡張がキー名のアルファベット順で並ぶ。ビルトインフッター（pwd・トークン統計・context 使用率）とは別に存在する。
+_Avoid_: カスタムフッター（`setFooter` でビルトインフッター全体を置換する方式。本拡張では採用しない）
+
+## Atlassian MCP 拡張
 
 pi coding agent から Atlassian Rovo MCP サーバー（Jira / Confluence 等）を使うための拡張機能に関する文脈。pi には組み込み MCP クライアントがないため、拡張機能内で MCP クライアントと OAuth を実装する。
 
-## Language
+### Language
 
 **Rovo MCP サーバー**:
 Atlassian 公式のリモート MCP サーバー（`https://mcp.atlassian.com/v1/mcp`）。Jira・Confluence・JSM・Bitbucket・Compass を MCP ツールとして公開する。
