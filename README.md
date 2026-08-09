@@ -123,3 +123,13 @@ GitHub の `main` / `master` ブランチへの直接 push および削除を禁
 - `git push --all` / `--mirror` は全ブランチ（main 含む）をチェック
 - カレントブランチが main/master の場合の `git push`（引数なし）もブロック
 - 別ブランチ宛ての push / 削除は許可
+
+### `reasoning-token-counter.ts` — Reasoning トークン数をフッターに常時表示
+
+モデルが消費した Reasoning（思考）トークン数をフッターの拡張ステータス行に常時表示します。ビルトインフッターにない「推論トークンの内訳」を補完します。
+
+- **表示**: `thinking 1.2k (73%) / 45k`（左=直近ターン＋出力比、右=セッション累計。ストリーミング中は直前ターンの値を表示し、usage 到着で今ターンの値に更新。出力比は出力 100 トークン未満のターンでは省略）
+- **データ**: プロバイダが報告する `usage.reasoning` のみを使用（推定なし）。OpenAI 系・Anthropic 対応
+- **挙動**: 値が無いとき（非対応モデル・thinking off）は非表示。`/new` でリセット、`/resume` で再集計
+- **設定**: なし（常時ON。外したい場合は読み込み元から外す）
+- 設計: `docs/reasoning-token-counter-spec.md`・`CONTEXT.md` を参照
