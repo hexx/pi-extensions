@@ -8,7 +8,7 @@
  *
  * 設計: docs/reasoning-token-counter-spec.md / CONTEXT.md を参照。
  *
- * - 表示: `🧠 1.2k (72%) / 45k`（左=直近ターン＋出力比、右=セッション累計）
+ * - 表示: `thinking 1.2k (72%) / 45k`（左=直近ターン＋出力比、右=セッション累計）
  * - ストリーミング中は直前ターンの確定値を出し続け、usage が届いたら
  *   今ターンの値に置き換わる（プロバイダの usage はストリーム末尾に届く
  *   ため、実質ターン確定時に値が入る。推定値は使わない）
@@ -126,7 +126,7 @@ export default function (pi: ExtensionAPI) {
 
 		if (turnValue > 0) {
 			const pctStr = pct !== undefined ? ` (${pct}%)` : "";
-			const left = theme.fg("accent", `🧠 ${formatCount(turnValue)}${pctStr}`);
+			const left = theme.fg("accent", `thinking ${formatCount(turnValue)}${pctStr}`);
 			const total =
 				sessionReasoning > 0 ? ` / ${theme.fg("dim", formatCount(sessionReasoning))}` : "";
 			ctx.ui.setStatus(STATUS_KEY, left + total);
@@ -135,7 +135,7 @@ export default function (pi: ExtensionAPI) {
 
 		if (sessionReasoning > 0) {
 			// 今ターンは値なし・累計のみ: 背景情報として dim で表示
-			ctx.ui.setStatus(STATUS_KEY, theme.fg("dim", `🧠 ${formatCount(sessionReasoning)}`));
+			ctx.ui.setStatus(STATUS_KEY, theme.fg("dim", `thinking ${formatCount(sessionReasoning)}`));
 			return;
 		}
 
