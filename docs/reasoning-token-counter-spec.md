@@ -39,6 +39,32 @@ grill-with-docs セッション（2ラウンド）の結論。すべて容易に
 - **ステータスキー**: `"reasoning"`
 - **コマンド・ツール・環境変数**: なし
 
+### 開発時の型検証
+
+本リポジトリには package.json / tsconfig がなく、拡張は jiti で生 TypeScript のまま読み込まれる。イベント名（`pi.on` のユニオン型）・メッセージロール・エントリ種別などのリテラルは、インストール済み pi パッケージの型定義と照合して検証する:
+
+```bash
+mkdir -p /tmp/tc && cat > /tmp/tc/tsconfig.json <<'EOF'
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@earendil-works/pi-coding-agent": ["/usr/local/lib/node_modules/@earendil-works/pi-coding-agent/dist/index.d.ts"]
+    }
+  },
+  "include": ["reasoning-token-counter.ts"]
+}
+EOF
+npx --package typescript tsc -p /tmp/tc/tsconfig.json
+```
+
+実行時検証はスモークテスト（jiti で拡張を実ロードし、イベントをモックで流す）による。
+
 ## 4. 表示仕様
 
 フッターの拡張ステータス行（3行目）に常時表示する。
@@ -90,7 +116,11 @@ grill-with-docs セッション（2ラウンド）の結論。すべて容易に
 | `turn_end` | 直前ターン値（Reasoning・出力）を今ターンの確定値で更新。累計を全エントリから再集計して表示を確定 |
 | `session_compact` | リプレイで累計を再集計（サマリの usage を含めるため） |
 
-**累計の導出方式**: セッション累計は**加算でなく、常に永続化済みエントリからの再集計で導出**する（`turn_end` / `session_start` / `session_compact` で `getEntries()` をスキャン。ビルトインフッターと同じ方式）。`message_end` で累計に加算しないのは、イベントの再発火などが起きても二重加算しないため。今ターン値はライブ表示に必要なため `message_end` での加算とする（再発火時は次の実ターンで正規化される）。`model_select` / `thinking_level_select` は購読不要 — usage 駆動のため自動追従する。
+**累計の導出方式**: セッション累計は**加算でなく、常に永続化済みエントリからの再集計で導出**する（`turn_end` / `session_start` / `session_compact` で `getEntries()` をスキャン。ビルトインフッターと同じ方式）。`message_end` で累計に加算しないのは、イベントの再発火などが起きても二重加算しないため。
+
+**永続化タイミングの検証済み事実**: pi の `agent-session.js` `_handleAgentEvent` は、`message_end` を「拡張イベント発火 → リスナー通知 → `sessionManager.appendMessage()`（永続化）」の順で処理し、`turn_end` は後続の別イベントとして処理する。したがって `turn_end` 時点の `getEntries()` には今ターンの全メッセージが必ず含まれる（この前提をスモークテストでもモックで再現して検証済み）。
+
+今ターン値はライブ表示に必要なため `message_end` での加算とする。**再発火の免責**: pi は message イベントをライブのエージェントループからのみ発火し、セッション復元時に再発火しない（復元はエントリ直接描画）。万一再発火があればターン値は膨張するが、次の実ターンの `turn_end` で正規化される。`model_select` / `thinking_level_select` は購読不要 — usage 駆動のため自動追従する。
 
 ## 6. エッジケース
 

@@ -176,6 +176,9 @@ export default function (pi: ExtensionAPI) {
 
 	// メッセージ確定: assistant / toolResult の usage を今ターンに加算する
 	// （累計には加算しない。累計は turn_end で全エントリから導出するため）
+	// 再発火の免責: pi は message イベントをライブのエージェントループからのみ発火し、
+	// セッション復元時に再発火しない（復元はエントリ直接描画）。万一再発火があれば
+	// ターン値は膨張するが、次の実ターンの turn_end で正規化される。
 	pi.on("message_end", (event, ctx) => {
 		if (event.message.role === "assistant" || event.message.role === "toolResult") {
 			turnReasoning += reasoningOf(event.message.usage);
@@ -189,6 +192,10 @@ export default function (pi: ExtensionAPI) {
 	// ターン終了: 直前ターン値（Reasoning・出力）を確定させ、累計を全エントリから再集計する。
 	// セッション累計は常に永続化済みエントリから導出する方式（ビルトインフッターと同じ）。
 	// message_end で累計に加算しないのは、イベントの再発火などが起きても二重加算しないため。
+	// 永続化タイミングの検証済み事実（pi の agent-session.js _handleAgentEvent）:
+	// message_end は「拡張イベント発火 → リスナー通知 → appendMessage（永続化）」の順で
+	// 処理され、turn_end は後続の別イベント。したがって turn_end 時点の getEntries() には
+	// 今ターンの全メッセージが必ず含まれる。
 	pi.on("turn_end", (_event, ctx) => {
 		streaming = false;
 		lastTurnReasoning = turnReasoning;
