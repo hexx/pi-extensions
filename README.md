@@ -50,6 +50,14 @@ pi -e ./brave-search-pi-work.ts
 
 変更を反映するには `/reload` を実行してください。拡張機能は jiti によってそのまま TypeScript として読み込まれるため、コンパイルは不要です。
 
+### テスト
+
+検出ルールを持つ拡張（`block-push-to-main.ts`）には `tests/` に検証テストを置いています。Node.js の組み込みテストランナーで実行します（追加の依存は不要）。
+
+```bash
+node --test tests/block-push-to-main.test.ts
+```
+
 ## 拡張機能一覧
 
 ### `brave-search-pi-work.ts` — Brave Search 検索ツール（pi-work プロファイル専用 / MCP ゲートウェイ版）
@@ -118,11 +126,16 @@ Atlassian 公式リモート MCP サーバー（Rovo MCP サーバー）へ接�
 GitHub の `main` / `master` ブランチへの直接 push および削除を禁止する拡張機能です。`git push` コマンドをインターセプトし、対象 ref が保護ブランチの場合にブロックします。
 
 - `git push origin main` などの直接 push をブロック
-- `git push --force` / `--force-with-lease` も検知
-- `git push origin --delete main` などの削除をブロック
+- `timeout 120 git push` / `sudo -u "root user" git push` / `env FOO=1 git push` / `GIT_SSH_COMMAND=ssh git push` のような**ラッパー・代入越しの push** もブロック（引数を読み飛ばして検出）
+- `git -C <dir> push`（**そのディレクトリでブランチを判定**）、`/usr/bin/git push`、`bash -c "git push …"`（シェルに文字列で渡す形）もブロック
+- `git push --force` / `--force-with-lease` も検知（非インタラクティブではブロック）
+- `git push origin --delete main` / `git push origin :main` などの削除をブロック
 - `git push --all` / `--mirror` は全ブランチ（main 含む）をチェック
 - カレントブランチが main/master の場合の `git push`（引数なし）もブロック
+- ブランチを判定できないとき（非リポジトリ・git 失敗など）は安全側でブロック
 - 別ブランチ宛ての push / 削除は許可
+- 検証: `node --test tests/block-push-to-main.test.ts`（62 ケース。使い捨てリポジトリでブロック/許可を判定）
+- 設計: `docs/block-push-to-main-spec.md` を参照（過去に素通りした 5 つの穴と対策を記録）
 
 ### `reasoning-token-counter.ts` — Reasoning トークン数をフッターに常時表示
 
