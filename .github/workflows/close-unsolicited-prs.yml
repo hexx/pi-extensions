@@ -1,0 +1,66 @@
+name: Close unsolicited pull requests
+
+# 外部コントリビューターからの依頼されていない PR を自動でクローズする。
+# pull_request_target は base ブランチ側のワークフロー定義で実行されるため、
+# PR 側のコードは一切 checkout しない（フォーク PR からのコード実行はない）。
+on:
+  pull_request_target:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { pull_request: pr } = context.payload;
+            const action = context.payload.action;
+
+            // メンテナ本人・組織メンバー・コラボレーターの PR は許可する
+            const allowedAssociations = ["OWNER", "MEMBER", "COLLABORATOR"];
+            if (allowedAssociations.includes(pr.author_association)) {
+              core.info(`Allowed: ${pr.user.login} (${pr.author_association})`);
+              return;
+            }
+
+            // 自動化ボットは、明示的に許可したものだけ通す
+            const allowedBots = ["dependabot[bot]", "renovate[bot]"];
+            if (pr.user.type === "Bot" && allowedBots.includes(pr.user.login)) {
+              core.info(`Allowed bot: ${pr.user.login}`);
+              return;
+            }
+
+            const body = [
+              "このリポジトリは個人が管理する拡張機能集で、事前に依頼のない外部からのプルリクエストは受け付けていません。そのため、このプルリクエストは自動的にクローズされました。",
+              "",
+              "提案や不具合の報告がある場合は、プルリクエストではなく Issue でお願いします。",
+              "",
+              "---",
+              "",
+              "This repository does not accept unsolicited pull requests from external contributors, so this PR has been closed automatically. If you'd like to propose a change, please open an issue first.",
+            ].join("\n");
+
+            // 再オープン時のコメント重複を避けるため、コメントは open 時のみ
+            if (action === "opened") {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
+
+            await github.rest.pulls.update({
+              owner,
+              repo,
+              pull_number: pr.number,
+              state: "closed",
+            });
+            core.info(`Closed unsolicited PR #${pr.number} by ${pr.user.login}`);

@@ -146,3 +146,7 @@ GitHub の `main` / `master` ブランチへの直接 push および削除を禁
 - **挙動**: 値が無いとき（非対応モデル・thinking off）は非表示。`/new` でリセット、`/resume` で再集計
 - **設定**: なし（常時ON。外したい場合は読み込み元から外す）
 - 設計: `docs/reasoning-token-counter-spec.md`・`CONTEXT.md` を参照
+
+## コントリビューション
+
+このリポジトリは個人が管理しています。事前に依頼のない外部からのプルリクエストは受け付けていません（`.github/workflows/close-unsolicited-prs.yml` により自動でクローズされます）。提案や不具合の報告は Issue でお願いします。
